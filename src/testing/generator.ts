@@ -8,11 +8,19 @@ const config = require("../../config/automation.json");
 async function ollamaAsk(prompt: string): Promise<string> {
   const host = process.env.OLLAMA_HOST ?? config.ollama.host;
   const model = process.env.OLLAMA_MODEL ?? config.ollama.model;
-  const res = await fetch(`${host}/api/generate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model, prompt, stream: false, options: { temperature: 0.2, num_predict: 2048 } }),
-  });
+  let res: any;
+  try {
+    res = await fetch(`${host}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, prompt, stream: false, options: { temperature: 0.2, num_predict: 2048 } }),
+    });
+  } catch (err: any) {
+    if (/ENOTFOUND|ECONNREFUSED/.test(err.message)) {
+      throw new Error(`Ollama not reachable at ${host} — start it locally or open SSH tunnel to Azure VM`);
+    }
+    throw err;
+  }
   if (!res.ok) throw new Error(`Ollama ${res.status}`);
   return ((await res.json()) as any).response.trim();
 }
@@ -155,6 +163,10 @@ export async function syncTestsForDiff(
         console.log(" skipped (empty file)");
       }
     } catch (err: any) {
+      if (err.message.includes("Ollama not reachable")) {
+        console.log(` ⚠ skipped (${err.message})`);
+        break; // No point trying remaining files if Ollama is down
+      }
       console.log(` ✗ ${err.message}`);
     }
   }

@@ -1,0 +1,67 @@
+{
+  "_comment": "Central config. Paths are relative to the target project root (set via TARGET_PROJECT_PATH in .env).",
+
+  "project": {
+    "name": "Nyrix / BlueMetal Pro",
+    "siteUrl": "https://www.nyrix.aazhara.in",
+    "repoUrl": "https://github.com/YOUR_USERNAME/YOUR_REPO"
+  },
+
+  "versioning": {
+    "strategy": "conventional-commits",
+    "versionFile": "package.json",
+    "tagPrefix": "v"
+  },
+
+  "docs": {
+    "changelog": "CHANGELOG.md",
+    "architecture": "docs/ARCHITECTURE.md",
+    "design": "docs/DESIGN.md",
+    "apiDocs": "docs/API.md",
+    "testLog": "docs/TEST-LOG.md",
+    "changeLog": "docs/CHANGE-LOG.md"
+  },
+
+  "integration": {
+    "baseUrl": "https://www.nyrix.aazhara.in",
+    "apiBaseUrl": "https://www.nyrix.aazhara.in/api",
+    "timeout": 10000,
+    "apiEndpoints": [
+      { "method": "GET",  "path": "/api/health",         "expect": 200, "label": "Health check" },
+      { "method": "GET",  "path": "/api/assets",          "expect": 200, "label": "List assets" },
+      { "method": "GET",  "path": "/api/requests",        "expect": 200, "label": "List requests" },
+      { "method": "GET",  "path": "/api/crushers",        "expect": 200, "label": "Crusher list" }
+    ],
+    "pages": [
+      { "path": "/",                  "label": "Home" },
+      { "path": "/crusher-app",       "label": "Crusher App" },
+      { "path": "/tracking-software", "label": "Tracking Software" },
+      { "path": "/bluemetal-pro",     "label": "BlueMetal Pro" },
+      { "path": "/nyrix",             "label": "Nyrix" },
+      { "path": "/pricing",           "label": "Pricing" },
+      { "path": "/about",             "label": "About" },
+      { "path": "/contact",           "label": "Contact" }
+    ]
+  },
+
+  "testing": {
+    "testDir": "tests",
+    "generatedDir": "tests/generated",
+    "unitPattern": "**/*.test.ts",
+    "integrationPattern": "tests/integration/**/*.ts"
+  },
+
+  "logging": {
+    "logDir": "logs",
+    "deployLog": "logs/deployments.log",
+    "changeLog": "logs/changes.log",
+    "testLog": "logs/test-runs.log",
+    "errorLog": "logs/errors.log"
+  },
+
+  "ollama": {
+    "host": "http://localhost:11434",
+    "model": "llama3.2",
+    "fallback": "mistral"
+  }
+}

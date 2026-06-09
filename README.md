@@ -7,22 +7,34 @@ Everything appends — nothing is ever overwritten.
 
 ---
 
-## What runs on every commit
+## What runs — and when
 
 ```
-pre-commit hook   → runs existing tests (blocks commit if they fail)
-post-commit hook  → runs the full pipeline in background:
-  1. Bump version         (patch / minor / major from conventional commits)
-  2. Update CHANGELOG.md  (grouped by feat / fix / breaking / chore)
-  3. Update ARCHITECTURE.md  (LLM summary of structural changes)
-  4. Update DESIGN.md        (LLM note on new features / breaking changes)
-  5. Update API.md           (LLM note when route files change)
-  6. Update automation.json  (auto-add new API endpoints from route files)
-  7. Generate/update tests   (LLM writes tests for changed source files)
-  8. Run all tests           (unit + generated)
-  9. Append logs             (logs/changes.log + docs/CHANGE-LOG.md)
-  10. Auto-commit all above  (single chore commit, skip CI)
+git commit
+  └─ pre-commit  (synchronous, blocks commit)
+       • Runs existing tests — commit blocked if any fail
+
+  └─ post-commit  (background, non-blocking)
+       • Bumps version
+       • Updates CHANGELOG.md
+       • Updates ARCHITECTURE.md, DESIGN.md, API.md  (via Ollama)
+       • Generates/updates tests for changed files   (via Ollama)
+       • Appends to change logs
+
+git push
+  └─ pre-push  (synchronous, blocks push) ← THE GATE
+       Step 1  Version bump + CHANGELOG.md
+       Step 2  Architecture, Design, API docs
+       Step 3  Test script generation (Ollama)
+       Step 4  Run ALL tests  ── FAIL = push blocked
+       Step 5  Integration checks (API endpoints + page links)  ── FAIL = push blocked
+       Step 6  Append logs (changes.log, CHANGE-LOG.md)
+       Step 7  Auto-commit all generated output
+               └─ The automation output travels WITH the push.
+                  Nothing reaches the remote without it.
 ```
+
+**Nothing reaches the remote unless the full pipeline passes.**
 
 ---
 

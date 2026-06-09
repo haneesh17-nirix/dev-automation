@@ -22,6 +22,7 @@ import {
   appendToChangeDoc,
 } from "./logging/appender";
 import { installHooks } from "./hooks/installer";
+import { execSync } from "child_process";
 
 const program = new Command();
 
@@ -212,12 +213,134 @@ program
       installHooks(projectPath);
     } else if (action === "uninstall") {
       const hooksDir = path.join(projectPath, ".git", "hooks");
-      for (const h of ["pre-commit", "post-commit"]) {
+      for (const h of ["pre-commit", "post-commit", "pre-push"]) {
         const hp = path.join(hooksDir, h);
         if (fs.existsSync(hp)) fs.unlinkSync(hp);
       }
       console.log("✓ Hooks removed");
     }
+  });
+
+// ── pre-push-pipeline: full synchronous gate called by the pre-push hook ─────
+// Steps:
+//   1. Bump version + update changelog
+//   2. Update docs (arch, design, API)
+//   3. Generate/update tests for changed files
+//   4. Run ALL tests — fail hard if any fail
+//   5. Run integration checks (API + links) — fail hard if any fail
+//   6. Append logs
+//   7. Auto-commit all generated output so it's included in the push
+program
+  .command("pre-push-pipeline")
+  .description("Full synchronous pipeline run by the pre-push hook")
+  .action(async () => {
+    const projectPath = getProjectPath();
+    let failed = false;
+
+    console.log(`\nProject : ${projectPath}`);
+    console.log(`Time    : ${new Date().toISOString()}\n`);
+
+    // 1. Gather context
+    const commit = getLastCommit(projectPath);
+    const diff = getDiffSummary(projectPath);
+    console.log(`Commit  : ${commit.shortHash} — ${commit.message}`);
+    console.log(`Changed : ${diff.filesChanged.length} files (+${diff.additions}/-${diff.deletions})\n`);
+
+    // 2. Version + changelog
+    console.log("── Step 1/6: Version & Changelog ──────────────────────");
+    const { oldVersion, newVersion, bumpType: bump } = bumpVersion(projectPath);
+    console.log(`  ${oldVersion} → ${newVersion} (${bump})`);
+    runChangelog(projectPath, newVersion);
+
+    // 3. Docs
+    console.log("\n── Step 2/6: Docs ──────────────────────────────────────");
+    await updateArchitectureDocs(projectPath, diff, commit);
+    await updateDesignDocs(projectPath, diff, commit);
+    await updateApiDocs(projectPath, diff, commit);
+    await updateApiConfig(projectPath, diff, commit);
+
+    // 4. Test generation
+    console.log("\n── Step 3/6: Test script generation ────────────────────");
+    await syncTestsForDiff(projectPath, diff, commit);
+
+    // 5. Run all tests — hard fail
+    console.log("\n── Step 4/6: Test run ──────────────────────────────────");
+    const suite = await runAllTests(projectPath);
+    logTestRun(projectPath, suite, newVersion);
+    if (suite.totalFailed > 0) {
+      console.error(`\n  ✗ ${suite.totalFailed} test(s) failed — push blocked.`);
+      failed = true;
+    } else {
+      console.log(`  ✓ All ${suite.totalPassed} tests passed`);
+    }
+
+    // 6. Integration checks — hard fail
+    console.log("\n── Step 5/6: Integration checks ────────────────────────");
+    console.log("  API endpoints:");
+    const apiReport = await runApiTests();
+    console.log("  Page links:");
+    const linkReport = await checkAllLinks();
+    updatePagesConfig(linkReport);
+    logIntegration(projectPath, apiReport, linkReport, newVersion);
+
+    const intFailed = apiReport.failed + linkReport.failed;
+    if (intFailed > 0) {
+      console.error(`\n  ✗ ${intFailed} integration check(s) failed — push blocked.`);
+      failed = true;
+    } else {
+      console.log(`  ✓ All integration checks passed`);
+    }
+
+    // 7. Logging
+    console.log("\n── Step 6/6: Logging ───────────────────────────────────");
+    logChange(projectPath, commit, diff, newVersion);
+    appendToChangeDoc(projectPath, commit, newVersion, diff);
+    console.log("  ✓ logs/changes.log");
+    console.log("  ✓ docs/CHANGE-LOG.md");
+
+    // If any step failed, abort now before auto-commit
+    if (failed) {
+      process.exit(1);
+    }
+
+    // 8. Auto-commit all generated output so it travels with the push
+    console.log("\n── Auto-committing automation output ───────────────────");
+    try {
+      execSync(
+        `git -C "${projectPath}" add \
+          CHANGELOG.md \
+          package.json \
+          docs/ \
+          logs/ \
+          tests/generated/ \
+          config/automation.json 2>/dev/null || true`,
+        { stdio: "pipe" }
+      );
+
+      // Only commit if there's actually something staged
+      const staged = execSync(`git -C "${projectPath}" diff --staged --name-only`, {
+        encoding: "utf8",
+        stdio: "pipe",
+      }).trim();
+
+      if (staged) {
+        execSync(
+          `git -C "${projectPath}" commit \
+            -m "chore: automation output for v${newVersion} [skip ci]" \
+            --no-verify`,
+          { stdio: "inherit" }
+        );
+        console.log(`  ✓ Committed automation output (will be included in this push)`);
+        console.log(`  Files committed:\n    ${staged.split("\n").join("\n    ")}`);
+      } else {
+        console.log("  Nothing new to commit — automation output already up to date.");
+      }
+    } catch (err: any) {
+      // Non-fatal: log but don't block the push
+      console.warn(`  Warning: auto-commit failed: ${err.message}`);
+    }
+
+    console.log(`\n✓ Pipeline complete — v${newVersion} ready to push.\n`);
   });
 
 program.parse(process.argv);

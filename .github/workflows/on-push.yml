@@ -1,0 +1,55 @@
+name: Automation Pipeline
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  automate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for changelog/versioning
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dev-automation deps
+        run: npm ci
+        working-directory: ${{ github.workspace }}
+
+      - name: Run version bump + changelog + docs
+        env:
+          TARGET_PROJECT_PATH: ${{ github.workspace }}
+          # No Ollama in CI — docs generation is skipped gracefully (no error, just no LLM update)
+          OLLAMA_HOST: http://localhost:11434
+        run: |
+          npx ts-node src/cli.ts version
+          npx ts-node src/cli.ts changelog
+
+      - name: Run integration checks
+        env:
+          TARGET_PROJECT_PATH: ${{ github.workspace }}
+        run: npx ts-node src/cli.ts integration --apis-only
+        continue-on-error: true # Don't fail the pipeline if the live site is down
+
+      - name: Log deployment
+        env:
+          TARGET_PROJECT_PATH: ${{ github.workspace }}
+        run: npx ts-node src/cli.ts log-deploy --env production
+
+      - name: Commit auto-updated files
+        run: |
+          git config user.name "Automation Bot"
+          git config user.email "automation@github-actions"
+          git add CHANGELOG.md package.json docs/ logs/ config/ 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "chore: auto-update docs and version [skip ci]"
+          git push || true

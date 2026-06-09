@@ -1,0 +1,24 @@
+{
+  "name": "dev-automation",
+  "version": "1.0.0",
+  "description": "Automated versioning, docs, testing, integration checks and logging for any project",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/cli.ts",
+    "install-hooks": "ts-node src/cli.ts hooks install",
+    "run-all": "ts-node src/cli.ts run-all"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "dotenv": "^16.4.5",
+    "node-fetch": "^2.7.0",
+    "semver": "^7.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/node-fetch": "^2.6.11",
+    "@types/semver": "^7.5.8",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  }
+}

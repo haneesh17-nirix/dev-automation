@@ -2,4 +2,11 @@ node_modules/
 dist/
 .env
 *.env.local
+
+# Runtime output
+logs/*
+!logs/.gitkeep
+tests/generated/*
+!tests/generated/.gitkeep
+
 *.log

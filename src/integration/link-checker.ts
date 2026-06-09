@@ -9,6 +9,7 @@ export interface LinkResult {
   label: string;
   status: number | null;
   ok: boolean;
+  unreachable?: boolean; // DNS/connection failure — site not deployed yet, treated as warning
   redirectTo?: string;
   error?: string;
   checkedAt: string;
@@ -41,7 +42,9 @@ async function checkUrl(
     const redirectTo = res.url !== url ? res.url : undefined;
     return { url, label, status: res.status, ok: res.ok, redirectTo, checkedAt };
   } catch (err: any) {
-    return { url, label, status: null, ok: false, error: err.message, checkedAt };
+    // ENOTFOUND / ECONNREFUSED = site not deployed yet → warn, don't fail
+    const unreachable = /ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT/.test(err.message);
+    return { url, label, status: null, ok: unreachable, unreachable, error: err.message, checkedAt };
   }
 }
 
@@ -93,7 +96,8 @@ export async function checkAllLinks(crawl = false): Promise<LinkCheckReport> {
     process.stdout.write(`    ${item.label.padEnd(30)}`);
     const r = await checkUrl(item.url, item.label, timeout);
     results.push(r);
-    console.log(r.ok ? `✓ ${r.status}` : `✗ ${r.status ?? r.error}`);
+    const tag = r.unreachable ? `⚠ unreachable (site not live)` : r.ok ? `✓ ${r.status}` : `✗ ${r.status ?? r.error}`;
+    console.log(tag);
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 

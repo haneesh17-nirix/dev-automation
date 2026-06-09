@@ -1,6 +1,6 @@
 {
   "name": "dev-automation",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Automated versioning, docs, testing, integration checks and logging for any project",
   "scripts": {
     "build": "tsc",

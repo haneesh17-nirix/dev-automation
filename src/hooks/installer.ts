@@ -1,57 +1,72 @@
 import * as fs from "fs";
 import * as path from "path";
-import { execSync } from "child_process";
 
 const AUTOMATION_DIR = path.resolve(__dirname, "../../");
 
+// pre-commit: fast check — run existing tests only (no generation, no integration)
 const PRE_COMMIT = `#!/bin/bash
-# dev-automation: pre-commit hook
-# Runs integration and unit tests before allowing a commit.
+# dev-automation: pre-commit — runs existing tests, blocks commit on failure
 set -e
-
 AUTOMATION_DIR="${AUTOMATION_DIR}"
 PROJECT_DIR="$(git rev-parse --show-toplevel)"
 
 echo ""
-echo "🔍 Pre-commit checks..."
-
-# Run tests (skip integration to keep pre-commit fast)
+echo "==> [pre-commit] Running tests..."
 TARGET_PROJECT_PATH="$PROJECT_DIR" npx ts-node "$AUTOMATION_DIR/src/cli.ts" tests --run-only
-
-echo "✓ Pre-commit checks passed"
+echo "==> [pre-commit] Passed."
 `;
 
+// post-commit: background — generate docs/changelog/tests for the new commit
+// Does NOT run integration or commit — those are the pre-push gate's job
 const POST_COMMIT = `#!/bin/bash
-# dev-automation: post-commit hook
-# Runs the full automation pipeline after every commit.
-# Runs in background so it doesn't block the commit.
-
+# dev-automation: post-commit — generates docs, changelog, and test scripts (background)
 AUTOMATION_DIR="${AUTOMATION_DIR}"
 PROJECT_DIR="$(git rev-parse --show-toplevel)"
 
 (
   echo ""
-  echo "🔧 Running post-commit automation..."
-  TARGET_PROJECT_PATH="$PROJECT_DIR" npx ts-node "$AUTOMATION_DIR/src/cli.ts" run-all --skip-integration
-
-  # Stage and commit the auto-updated docs/logs
-  cd "$PROJECT_DIR"
-  git add \\
-    CHANGELOG.md \\
-    package.json \\
-    docs/ \\
-    logs/ \\
-    tests/generated/ \\
-    config/automation.json \\
-    2>/dev/null || true
-
-  if ! git diff --staged --quiet; then
-    git commit -m "chore: auto-update docs, tests, and logs [skip ci]" --no-verify
-    echo "✓ Auto-committed docs and logs"
-  fi
+  echo "==> [post-commit] Updating docs, changelog, and test scripts..."
+  TARGET_PROJECT_PATH="$PROJECT_DIR" npx ts-node "$AUTOMATION_DIR/src/cli.ts" run-all \\
+    --skip-tests \\
+    --skip-integration
+  echo "==> [post-commit] Done."
 ) &
-
 disown
+`;
+
+// pre-push: synchronous gate — full pipeline must pass before any push reaches the remote.
+// 1. Waits for any background post-commit to finish (via lock file check)
+// 2. Runs full pipeline: version + changelog + docs + test generation + tests + integration
+// 3. Auto-commits all generated output (so it's included in the push)
+// 4. Blocks the push if tests or integration checks fail
+const PRE_PUSH = `#!/bin/bash
+# dev-automation: pre-push gate
+# Everything that goes to the remote must include the full automation output.
+set -e
+AUTOMATION_DIR="${AUTOMATION_DIR}"
+PROJECT_DIR="$(git rev-parse --show-toplevel)"
+
+echo ""
+echo "================================================"
+echo " dev-automation: pre-push pipeline"
+echo "================================================"
+
+# ── 1. Run the full pipeline synchronously ────────────────────────────────────
+TARGET_PROJECT_PATH="$PROJECT_DIR" npx ts-node "$AUTOMATION_DIR/src/cli.ts" pre-push-pipeline
+PIPELINE_EXIT=$?
+
+if [ $PIPELINE_EXIT -ne 0 ]; then
+  echo ""
+  echo "✗ Push blocked: automation pipeline failed (exit $PIPELINE_EXIT)."
+  echo "  Fix the issues above and try again."
+  exit 1
+fi
+
+echo ""
+echo "================================================"
+echo " All checks passed. Push proceeding."
+echo "================================================"
+exit 0
 `;
 
 export function installHooks(projectPath: string): void {
@@ -67,6 +82,7 @@ export function installHooks(projectPath: string): void {
   const hooks: Record<string, string> = {
     "pre-commit": PRE_COMMIT,
     "post-commit": POST_COMMIT,
+    "pre-push": PRE_PUSH,
   };
 
   for (const [name, content] of Object.entries(hooks)) {
@@ -81,6 +97,8 @@ export function installHooks(projectPath: string): void {
   }
 
   console.log(`\n✅ Hooks installed in ${hooksDir}`);
-  console.log("   pre-commit  → runs tests before every commit");
-  console.log("   post-commit → bumps version, updates docs/changelog/logs after every commit");
+  console.log("   pre-commit  → runs existing tests (fast, blocks bad commits)");
+  console.log("   post-commit → regenerates docs/changelog/tests in background");
+  console.log("   pre-push    → full pipeline gate: tests + integration + auto-commit output");
+  console.log("                 NOTHING reaches the remote unless this passes.\n");
 }

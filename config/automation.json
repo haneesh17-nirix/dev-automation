@@ -2,45 +2,41 @@
   "_comment": "Central config. Paths are relative to the target project root (set via TARGET_PROJECT_PATH in .env).",
 
   "project": {
-    "name": "Nyrix / BlueMetal Pro",
-    "siteUrl": "https://www.nyrix.aazhara.in",
-    "repoUrl": "https://github.com/YOUR_USERNAME/YOUR_REPO"
+    "name": "NIRIX BME Tracker",
+    "siteUrl": "https://app.nirixtracking.in",
+    "repoUrl": "https://github.com/haneesh17-nirix/nirix-tracking"
   },
 
   "versioning": {
     "strategy": "conventional-commits",
-    "versionFile": "package.json",
+    "versionFile": "frontend/package.json",
     "tagPrefix": "v"
   },
 
   "docs": {
-    "changelog": "CHANGELOG.md",
+    "changelog": "docs/CHANGELOG.md",
     "architecture": "docs/ARCHITECTURE.md",
-    "design": "docs/DESIGN.md",
+    "design": "docs/UI_DESIGN_PATTERNS.md",
     "apiDocs": "docs/API.md",
     "testLog": "docs/TEST-LOG.md",
-    "changeLog": "docs/CHANGE-LOG.md"
+    "changeLog": "docs/CHANGELOG.md"
   },
 
   "integration": {
-    "baseUrl": "https://www.nyrix.aazhara.in",
-    "apiBaseUrl": "https://www.nyrix.aazhara.in/api",
-    "timeout": 10000,
+    "baseUrl": "https://app.nirixtracking.in",
+    "apiBaseUrl": "https://api.nirixtracking.in",
+    "timeout": 15000,
     "apiEndpoints": [
-      { "method": "GET",  "path": "/api/health",         "expect": 200, "label": "Health check" },
-      { "method": "GET",  "path": "/api/assets",          "expect": 200, "label": "List assets" },
-      { "method": "GET",  "path": "/api/requests",        "expect": 200, "label": "List requests" },
-      { "method": "GET",  "path": "/api/crushers",        "expect": 200, "label": "Crusher list" }
+      { "method": "GET",  "path": "/api/health",     "expect": 200, "label": "Main API health" },
+      { "method": "GET",  "path": "/api/equipment",  "expect": 401, "label": "Equipment (auth guard)" },
+      { "method": "GET",  "path": "/api/tenants",    "expect": 401, "label": "Tenants (auth guard)" }
     ],
     "pages": [
-      { "path": "/",                  "label": "Home" },
-      { "path": "/crusher-app",       "label": "Crusher App" },
-      { "path": "/tracking-software", "label": "Tracking Software" },
-      { "path": "/bluemetal-pro",     "label": "BlueMetal Pro" },
-      { "path": "/nyrix",             "label": "Nyrix" },
-      { "path": "/pricing",           "label": "Pricing" },
-      { "path": "/about",             "label": "About" },
-      { "path": "/contact",           "label": "Contact" }
+      { "path": "/",           "label": "Landing" },
+      { "path": "/login",      "label": "Login" },
+      { "path": "/dashboard",  "label": "Dashboard" },
+      { "path": "/requests",   "label": "Requests" },
+      { "path": "/equipment",  "label": "Equipment" }
     ]
   },
 

@@ -101,11 +101,12 @@ export async function runApiTests(): Promise<ApiTestReport> {
   }
 
   const passed = results.filter((r) => r.passed).length;
+  const realFailed = results.filter((r) => !r.passed && !r.unreachable).length;
   return {
     baseUrl,
     total: results.length,
     passed,
-    failed: results.length - passed,
+    failed: realFailed,
     results,
     ranAt: new Date().toISOString(),
   };
